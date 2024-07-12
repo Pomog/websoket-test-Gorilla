@@ -45,6 +45,40 @@
     let selectedChat = "general";
 
     /**
+     * Event is used to wrap all messages Send and Received
+     * on the Websocket
+     * The type is used as an RPC
+     * */
+    class Event {
+        constructor(type, payload) {
+            this.type = type;
+            this.payload = payload;
+        }
+    }
+
+
+    /**
+     * routeEvent is a proxy function that routes
+     * events into their correct Handler
+     * based on the type field
+     * */
+    function routeEvent(event) {
+
+        if (event.type === undefined) {
+            alert("no 'type' field in event");
+        }
+        switch (event.type) {
+            case "new_message":
+                console.log("new message");
+                break;
+            default:
+                alert("unsupported message type");
+                break;
+        }
+    }
+
+
+    /**
      * changeChatRoom will update the value of selectedChat
      * and also notify the server that it changes chatroom
      * */
@@ -56,32 +90,30 @@
         }
         return false;
     }
+
     /**
      * sendMessage will send a new message onto the Websocket
      * */
     function sendMessage() {
         let newMessage = document.getElementById("message");
         if (newMessage != null) {
-            console.log(newMessage);
+            sendEvent("send_message", newMessage.value)
         }
         return false;
     }
-    /**
-     * Once the website loads, we want to apply listeners and connect to websocket
-     * */
-    window.onload = function () {
-        // Apply our listener functions to the submit event on both forms
-        // we do it this way to avoid redirects
-        document.getElementById("chatroom-selection").onsubmit = changeChatRoom;
-        document.getElementById("chatroom-message").onsubmit = sendMessage;
 
-        // Check if the browser supports WebSocket
-        if (window["WebSocket"]) {
-            console.log("supports websockets");
-        } else {
-            alert("Not supporting websockets");
-        }
-    };
+
+    /**
+     * sendEvent
+     * eventName - the event name to send on
+     * payload - the data payload
+     * */
+    function sendEvent(eventName, payload) {
+        // Create an event Object with a event named send_message
+        const event = new Event(eventName, payload);
+        // Format as JSON and send
+        conn.send(JSON.stringify(event));
+    }
 
     /**
      * Once the website loads, apply listeners and connect to websocket
@@ -96,11 +128,23 @@
         if (window["WebSocket"]) {
             console.log("supports websockets");
             // Connect to websocket
-            const conn = new WebSocket("ws://" + document.location.host + "/ws");
+            // TODO : FIX implicitly declaration
+            conn = new WebSocket("ws://" + document.location.host + "/ws");
+
+            // Add a listener to the onmessage event
+            conn.onmessage = function(evt) {
+                // parse websocket message as JSON
+                const eventData = JSON.parse(evt.data);
+                // Assign JSON data to new Event Object
+                const event = Object.assign(new Event, eventData);
+                // Let router manage message
+                routeEvent(event);
+            }
         } else {
             alert("Not supporting websockets");
         }
     };
+
 </script>
 
 <style>
