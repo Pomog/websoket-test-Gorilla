@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"github.com/gorilla/websocket"
 	"log"
+	"time"
 )
 
 // ClientList is a map used to help manage a map of clients
@@ -20,6 +21,15 @@ type Client struct {
 	// egress is used to avoid concurrent writes on the WebSocket
 	egress chan Event
 }
+
+var (
+	// pongWait is how long we will await a pong response from client
+	pongWait = 10 * time.Second
+
+	// pingInterval has to be less than pongWait, We cant multiply by 0.9 to get 90% of time
+	// Because that can make decimals, so instead *9 / 10 to get 90%
+	pingInterval = (pongWait * 9) / 10
+)
 
 // NewClient is used to initialize a new Client with all required values initialized
 func NewClient(conn *websocket.Conn, manager *Manager) *Client {
@@ -39,6 +49,16 @@ func (c *Client) readMessages() {
 		// function is done
 		c.manager.removeClient(c)
 	}()
+
+	// Configure Wait time for Pong response, use Current time + pongWait
+	// This has to be done here to set the first initial timer.
+	if err := c.connection.SetReadDeadline(time.Now().Add(pongWait)); err != nil {
+		log.Println(err)
+		return
+	}
+	// Configure how to handle Pong responses
+	c.connection.SetPongHandler(c.pongHandler)
+
 	// Loop Forever
 	for {
 		// ReadMessage is used to read the next message in queue
@@ -69,9 +89,19 @@ func (c *Client) readMessages() {
 	}
 }
 
+// pongHandler is used to handle PongMessages for the Client
+func (c *Client) pongHandler(pongMsg string) error {
+	// Current time + Pong Wait time
+	log.Println("pong")
+	return c.connection.SetReadDeadline(time.Now().Add(pongWait))
+}
+
 // writeMessages continuously reads from the client's egress channel
 // and writes messages to the WebSocket connection.
 func (c *Client) writeMessages() {
+	// Create a ticker that triggers a ping at given interval
+	ticker := time.NewTicker(pingInterval)
+
 	defer func() {
 		// Graceful close if this triggers a closing
 		c.manager.removeClient(c)
@@ -104,6 +134,13 @@ func (c *Client) writeMessages() {
 				log.Println(err)
 			}
 			log.Println("sent message")
+		case <-ticker.C:
+			log.Println("ping")
+			// Send the Ping
+			if err := c.connection.WriteMessage(websocket.PingMessage, []byte{}); err != nil {
+				log.Println("write msg: ", err)
+				return // return to break this goroutine triggering cleanup
+			}
 		}
 
 	}
