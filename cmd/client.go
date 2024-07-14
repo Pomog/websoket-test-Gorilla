@@ -91,8 +91,8 @@ func (c *Client) readMessages() {
 
 // pongHandler is used to handle PongMessages for the Client
 func (c *Client) pongHandler(pongMsg string) error {
-	// Current time + Pong Wait time
 	log.Println("pong")
+	// Current time + Pong Wait time
 	return c.connection.SetReadDeadline(time.Now().Add(pongWait))
 }
 
@@ -134,6 +134,7 @@ func (c *Client) writeMessages() {
 				log.Println(err)
 			}
 			log.Println("sent message")
+
 		case <-ticker.C:
 			log.Println("ping")
 			// Send the Ping
