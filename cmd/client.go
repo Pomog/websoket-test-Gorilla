@@ -29,6 +29,9 @@ var (
 	// pingInterval has to be less than pongWait, We cant multiply by 0.9 to get 90% of time
 	// Because that can make decimals, so instead *9 / 10 to get 90%
 	pingInterval = (pongWait * 9) / 10
+
+	// maxMessageLength maximum length of the chat message
+	maxMessageLength int64 = 512
 )
 
 // NewClient is used to initialize a new Client with all required values initialized
@@ -49,6 +52,9 @@ func (c *Client) readMessages() {
 		// function is done
 		c.manager.removeClient(c)
 	}()
+
+	// Set Max Size of Messages in Bytes
+	c.connection.SetReadLimit(maxMessageLength)
 
 	// Configure Wait time for Pong response, use Current time + pongWait
 	// This has to be done here to set the first initial timer.
