@@ -1,11 +1,14 @@
 package main
 
 import (
+	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
 	"net/http"
 	"sync"
+	"time"
 
 	"github.com/gorilla/websocket"
 )
@@ -19,11 +22,25 @@ var (
 		ReadBufferSize:  1024,
 		WriteBufferSize: 1024,
 	}
-)
 
-var (
 	ErrEventNotSupported = errors.New("this event type is not supported")
 )
+
+// checkOrigin will check origin and return true if its allowed
+func checkOrigin(r *http.Request) bool {
+
+	// Grab the request origin
+	origin := r.Header.Get("Origin")
+	fmt.Println(origin)
+
+	switch origin {
+	case allowedOrigin:
+		fmt.Println("Origin confirmed")
+		return true
+	default:
+		return false
+	}
+}
 
 // Manager is used to hold references to all Clients Registered, and Broadcasting etc
 type Manager struct {
@@ -35,31 +52,73 @@ type Manager struct {
 
 	// handlers are functions that are used to handle Events
 	handlers map[string]EventHandler
+
+	// otp is a map of allowed OTP to accept connections from
+	otp RetentionMap
 }
 
 // NewManager is used to initialize all the values inside the manager
-func NewManager() *Manager {
+func NewManager(ctx context.Context) *Manager {
 	m := &Manager{
 		clients:  make(ClientList),
 		handlers: make(map[string]EventHandler),
+
+		// Create a new retentionMap that removes Otp older than 5 seconds
+		otp: NewRetentionMap(ctx, 5*time.Second),
 	}
 
 	m.setupEventHandlers()
 	return m
 }
 
-// checkOrigin will check origin and return true if its allowed
-func checkOrigin(r *http.Request) bool {
+// loginHandler is used to verify a user authentication and return a one time password
+func (m *Manager) loginHandler(w http.ResponseWriter, r *http.Request) {
 
-	// Grab the request origin
-	origin := r.Header.Get("Origin")
-
-	switch origin {
-	case "http://localhost:8080":
-		return true
-	default:
-		return false
+	type userLoginRequest struct {
+		Username string `json:"username"`
+		Password string `json:"password"`
 	}
+
+	var req userLoginRequest
+	err := json.NewDecoder(r.Body).Decode(&req)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	fmt.Println("Login Info")
+	fmt.Println(req)
+
+	// Authenticate user / Verify Access token, what ever auth method you use
+	if req.Username == "percy" && req.Password == "123" {
+		// format to return otp in to the frontend
+		fmt.Println("Login confirmed")
+		type response struct {
+			OTP string `json:"otp"`
+		}
+
+		// add a new OTP
+		otp := m.otp.NewOTP()
+
+		resp := response{
+			OTP: otp.Key,
+		}
+
+		data, err := json.Marshal(resp)
+		if err != nil {
+			log.Println(err)
+			return
+		}
+		// Return a response to the Authenticated user with the OTP
+		w.WriteHeader(http.StatusOK)
+		_, errWrite := w.Write(data)
+		if errWrite != nil {
+			return
+		}
+		return
+	}
+
+	// Failure to auth
+	w.WriteHeader(http.StatusUnauthorized)
 }
 
 // setupEventHandlers configures and adds all handlers
@@ -87,6 +146,20 @@ func (m *Manager) routeEvent(event Event, c *Client) error {
 
 // serveWS is an HTTP Handler that the has the Manager that allows connections
 func (m *Manager) serveWS(w http.ResponseWriter, r *http.Request) {
+	// Grab the OTP in the Get param
+	otp := r.URL.Query().Get("otp")
+	if otp == "" {
+		// Tell the user it's not authorized
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+
+	// Verify OTP is existing
+	if !m.otp.VerifyOTP(otp) {
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+
 	log.Println("New connection from: ", r.RemoteAddr)
 	// Begin by upgrading the HTTP request
 	conn, err := websocketUpgrader.Upgrade(w, r, nil)
