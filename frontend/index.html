@@ -90,7 +90,7 @@
             console.log("supports websockets");
             // Connect to websocket using OTP as a parameter
             // TODO : FIX implicitly declaration
-            conn = new WebSocket("ws://" + document.location.host + "/ws?otp="+ otp);
+            conn = new WebSocket("wss://" + document.location.host + "/ws?otp="+ otp);
 
             // Onopen
             conn.onopen = function (evt) {
