@@ -18,10 +18,13 @@ func setupAPI(ctx context.Context) {
 	http.HandleFunc("/ws", manager.serveWS)
 
 	http.HandleFunc("/debug", func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprint(w, len(manager.clients))
+		_, err := fmt.Fprint(w, len(manager.clients))
+		if err != nil {
+			return
+		}
 	})
 }
 
 var (
-	allowedOrigin = "https://localhost:" + PORT
+	allowedOrigin = "https://localhost:8080"
 )
