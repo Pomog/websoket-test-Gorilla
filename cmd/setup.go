@@ -23,5 +23,5 @@ func setupAPI(ctx context.Context) {
 }
 
 var (
-	allowedOrigin = "http://localhost:8080"
+	allowedOrigin = "https://localhost:" + PORT
 )

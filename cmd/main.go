@@ -4,6 +4,7 @@ import (
 	"context"
 	"log"
 	"net/http"
+	"path/filepath"
 )
 
 func main() {
@@ -16,6 +17,11 @@ func main() {
 
 	setupAPI(ctx)
 
-	// Serve on port :8080, fudge yeah hardcoded port
-	log.Fatal(http.ListenAndServe(":8080", nil))
+	certFile := filepath.Join("cmd", "server.crt")
+	keyFile := filepath.Join("cmd", "server.key")
+
+	err := http.ListenAndServeTLS(PORT, certFile, keyFile, nil)
+	if err != nil {
+		log.Fatal("ListenAndServe: ", err)
+	}
 }
