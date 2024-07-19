@@ -2,9 +2,9 @@
 <html lang="en">
 
 <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta http-equiv="X-UA-Compatible" content="ie=edge" />
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <meta http-equiv="X-UA-Compatible" content="ie=edge"/>
     <title>Websockets</title>
 </head>
 
@@ -55,6 +55,27 @@
 <script type="text/javascript">
 
     /**
+     * SendMessageEvent is used to send messages to other clients
+     * */
+    class SendMessageEvent {
+        constructor(message, from) {
+            this.message = message;
+            this.from = from;
+        }
+    }
+
+    /**
+     * NewMessageEvent is messages coming from clients
+     * */
+    class NewMessageEvent {
+        constructor(message, from, sent) {
+            this.message = message;
+            this.from = from;
+            this.sent = sent;
+        }
+    }
+
+    /**
      * login will send a login request to the server and then
      * connect websocket
      * */
@@ -77,7 +98,9 @@
         }).then((data) => {
             // Now we have an OTP, send a Request to Connect to WebSocket
             connectWebsocket(data.otp);
-        }).catch((e) => { alert(e) });
+        }).catch((e) => {
+            alert(e)
+        });
         return false;
     }
 
@@ -90,14 +113,14 @@
             console.log("supports websockets");
             // Connect to websocket using OTP as a parameter
             // TODO : FIX implicitly declaration
-            conn = new WebSocket("wss://" + document.location.host + "/ws?otp="+ otp);
+            conn = new WebSocket("wss://" + document.location.host + "/ws?otp=" + otp);
 
             // Onopen
             conn.onopen = function (evt) {
                 document.getElementById("connection-header").innerHTML = "Connected to Websocket: true";
             }
 
-            conn.onclose = function(evt) {
+            conn.onclose = function (evt) {
                 // Set disconnected
                 document.getElementById("connection-header").innerHTML = "Connected to Websocket: false";
             }
@@ -133,6 +156,18 @@
         }
     }
 
+    /**
+     * appendChatMessage takes in new messages and adds them to the chat
+     * */
+    function appendChatMessage(messageEvent) {
+        let date = new Date(messageEvent.sent);
+        // format message
+        const formattedMsg = `${date.toLocaleString()}: ${messageEvent.message}`;
+        // Append Message
+        let textarea = document.getElementById("chatMessages");
+        textarea.innerHTML = textarea.innerHTML + "\n" + formattedMsg;
+        textarea.scrollTop = textarea.scrollHeight;
+    }
 
     /**
      * routeEvent is a proxy function that routes
@@ -146,11 +181,21 @@
         }
         switch (event.type) {
             case "new_message":
-                console.log("new message");
+                const messageEvent = Object.assign(new NewMessageEvent, event.payload);
+                appendChatMessage(messageEvent);
                 break;
             default:
                 alert("unsupported message type");
                 break;
+        }
+    }
+
+    /**
+     * ChangeChatRoomEvent is used to switch chatroom
+     * */
+    class ChangeChatRoomEvent {
+        constructor(name) {
+            this.name = name;
         }
     }
 
@@ -163,7 +208,13 @@
         // Change Header to reflect the Changed chatroom
         let newChat = document.getElementById("chatroom");
         if (newChat != null && newChat.value !== selectedChat) {
-            console.log(newChat);
+            let selectedChat = newChat.value;
+            let header = document.getElementById("chat-header").innerHTML = "Currently in chat: " + selectedChat;
+
+            let changeEvent = new ChangeChatRoomEvent(selectedChat);
+            sendEvent("change_room", changeEvent);
+            let textarea = document.getElementById("chatMessages");
+            textarea.innerHTML = `You changed room into: ${selectedChat}`;
         }
         return false;
     }
@@ -174,7 +225,8 @@
     function sendMessage() {
         let newMessage = document.getElementById("message");
         if (newMessage != null) {
-            sendEvent("send_message", newMessage.value)
+            let outgoingEvent = new SendMessageEvent(newMessage.value, "percy");
+            sendEvent("send_message", outgoingEvent)
         }
         return false;
     }
@@ -186,7 +238,7 @@
      * payload - the data payload
      * */
     function sendEvent(eventName, payload) {
-        // Create an event Object with a event named send_message
+        // Create an event Object with an event named send_message
         const event = new Event(eventName, payload);
         // Format as JSON and send
         conn.send(JSON.stringify(event));

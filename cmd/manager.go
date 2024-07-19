@@ -124,11 +124,14 @@ func (m *Manager) loginHandler(w http.ResponseWriter, r *http.Request) {
 
 // setupEventHandlers configures and adds all handlers
 func (m *Manager) setupEventHandlers() {
-	m.handlers[EventSendMessage] = func(e Event, c *Client) error {
-		fmt.Println(e)
-		fmt.Println(string(e.Payload))
-		return nil
-	}
+	m.handlers[EventSendMessage] = SendMessageHandler
+	m.handlers[EventChangeRoom] = ChatRoomHandler
+
+	//m.handlers[EventSendMessage] = func(e Event, c *Client) error {
+	//	fmt.Println(e)
+	//	fmt.Println(string(e.Payload))
+	//	return nil
+	//}
 }
 
 // routeEvent is used to make sure the correct event goes into the correct handler
