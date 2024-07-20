@@ -15,8 +15,8 @@ type Event struct {
 	Payload json.RawMessage `json:"payload"`
 }
 
-// EventHandler is a function signature that is used to affect messages on the socket and triggered
-// depending on the type
+// EventHandler is a function signature that is used to affect messages on the socket
+// and triggered depending on the type
 type EventHandler func(event Event, c *Client) error
 
 var (
@@ -47,11 +47,12 @@ type NewMessageEvent struct {
 func SendMessageHandler(event Event, c *Client) error {
 	// Marshal Payload into wanted format
 	var chatVent SendMessageEvent
-	fmt.Println("event ->")
-	fmt.Println(event)
+
 	if err := json.Unmarshal(event.Payload, &chatVent); err != nil {
 		return fmt.Errorf("bad payload in request: %v", err)
 	}
+	fmt.Println("chatVent")
+	fmt.Println(chatVent)
 
 	// Prepare an Outgoing Message to others
 	var broadMessage NewMessageEvent
@@ -69,13 +70,18 @@ func SendMessageHandler(event Event, c *Client) error {
 	var outgoingEvent Event
 	outgoingEvent.Payload = data
 	outgoingEvent.Type = EventNewMessage
+	fmt.Println("outgoingEvent")
+	fmt.Println(outgoingEvent)
+
 	// Broadcast to all other Clients
 	for client := range c.manager.clients {
-		client.egress <- outgoingEvent
+		// Only send to clients inside the same chatroom
+		if client.chatroom == c.chatroom {
+			client.egress <- outgoingEvent
+		}
 	}
 
 	return nil
-
 }
 
 type ChangeRoomEvent struct {

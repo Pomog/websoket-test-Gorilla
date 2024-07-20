@@ -179,6 +179,8 @@
         if (event.type === undefined) {
             alert("no 'type' field in event");
         }
+
+        console.log("event \n", event)
         switch (event.type) {
             case "new_message":
                 const messageEvent = Object.assign(new NewMessageEvent, event.payload);
